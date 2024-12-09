@@ -50,9 +50,9 @@ impl Dataset {
         self
     }
 
-    pub fn attach_folder(&self, folder_path: &Path) -> &Self {
+    pub fn attach_folder(&self, folder_path: impl AsRef<Path>) -> &Self {
         info_span!("添加批量数据");
-        let bat = BatchOpen::new(folder_path);
+        let bat = BatchOpen::new(folder_path.as_ref());
         bat.read_all().par_bridge().for_each(|x| {
             self.attach_df(x);
         });
