@@ -10,6 +10,8 @@ use prelude::*;
 fn main() -> anyhow::Result<()> {
     use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
     tracing_subscriber::registry().with(fmt::layer()).init();
+
+
     let ds = Dataset::new();
     ds.attach_folder("./tmp/batch");
     let mut df = ds.done();

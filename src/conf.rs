@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
+use anyhow::bail;
 use polars::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 
 type Any<T> = &'static [T];
-pub const NULL_MARK: Any<&'static str> = &["-"];
+pub const NULL_MARK: Any<&'static str> = &["-", "_"];
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Entity {
@@ -135,15 +136,22 @@ impl Config {
 }
 
 impl Config {
-    pub fn auto_detect(sig: &[String]) -> Option<Self> {
+    pub fn auto_detect(sig: &[String]) -> anyhow::Result<Self> {
         for &i in Self::ALL {
             if i.check(sig) {
-                return Some(i);
+                return Ok(i);
             }
         }
-        None
+        bail!("未定义的文件表头 - {:?}", sig)
     }
-    pub const ALL: &[Config] = &[Self::GF_BANK, Self::GF_3, Self::JASS, Self::JZ];
+    pub const ALL: &[Config] = &[
+        Self::GF_BANK,
+        Self::GF_3,
+        Self::JASS,
+        Self::JZ,
+        Self::QQ,
+        Self::GENERIC1,
+    ];
     pub const GF_BANK: Config = Config {
         name: "国反-银行",
         col_id: None,
@@ -245,6 +253,56 @@ impl Config {
             },
             col_direct: "借贷标志",
             value_out: "借",
+        },
+    };
+    pub const QQ: Config = Config {
+        name: "QQ钱包",
+        col_id: None, //有一列支付订单号，但是均为空
+        time: Time {
+            col: "交易时间",
+            fmt: "%Y-%m-%d %H:%M:%S",
+            fmt_alter: None,
+        },
+        trans: Trans::Simple {
+            col_amount: "交易金额",
+            from: Entity {
+                col_id: "付款方支付账号",
+                col_id_alter: None,
+                col_bank_id: Some("付款银行卡号"),
+                col_name: Some("付款方开户名"),
+            },
+            to: Entity {
+                col_id: "交易流水号",
+                col_id_alter: None,
+                col_bank_id: Some("收款银行卡号"),
+                col_name: Some("收款方的商户名称"),
+            },
+        },
+    };
+    pub const GENERIC1: Config = Config {
+        name: "通用格式-1",
+        col_id: None,
+        time: Time {
+            col: "交易日期",
+            fmt: "%Y-%m-%d %H:%M:%S",
+            fmt_alter: None,
+        },
+        trans: Trans::Duplex {
+            col_amount: "交易金额",
+            one: Entity {
+                col_id: "查询账户",
+                col_id_alter: None,
+                col_bank_id: None,
+                col_name: Some("查询姓名"),
+            },
+            other: Entity {
+                col_id: "对方账户",
+                col_id_alter: None,
+                col_bank_id: None,
+                col_name: Some("对方姓名"),
+            },
+            col_direct: "借贷标识",
+            value_out: "出",
         },
     };
 }
