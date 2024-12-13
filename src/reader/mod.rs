@@ -3,13 +3,15 @@ use std::{
     sync::LazyLock,
 };
 
+use anyhow::bail;
+
 use crate::{conf::Trans, prelude::*};
 
 pub mod csv;
 pub mod xlsx;
 
 // 表头名
-pub const GEN_COLUMN: [&'static str; 10] = [
+pub const GEN_COLUMN: [&'static str; 11] = [
     "_config_name",
     "_datetime",
     "_amount",
@@ -19,10 +21,11 @@ pub const GEN_COLUMN: [&'static str; 10] = [
     "_to_id",
     "_to_bank_id",
     "_to_name",
+    "_prime_id",
     "_file_path",
 ];
 
-const GEN_SCHEMA_LIT: [DataType; 10] = [
+const GEN_SCHEMA_LIT: [DataType; 11] = [
     DataType::String,
     DataType::Datetime(TimeUnit::Milliseconds, None),
     DataType::Decimal(Some(38), Some(2)),
@@ -33,11 +36,12 @@ const GEN_SCHEMA_LIT: [DataType; 10] = [
     DataType::String,
     DataType::String,
     DataType::String,
+    DataType::String,
 ];
 
 fn gen_schema() -> Arc<Schema> {
-    let mut ret = Schema::with_capacity(10);
-    for i in 0..10 {
+    let mut ret = Schema::with_capacity(11);
+    for i in 0..11 {
         ret.insert(GEN_COLUMN[i].into(), GEN_SCHEMA_LIT[i].clone());
     }
     Arc::new(ret)
@@ -65,6 +69,9 @@ pub trait GenericFile {
 pub fn read(path: impl AsRef<Path>) -> anyhow::Result<DataFrame> {
     info_span!("打开文件");
     let path = path.as_ref();
+    if path.to_str().unwrap().starts_with("~$") {
+        bail!("临时文件，跳过")
+    }
     let ext = path.extension().unwrap().to_str().unwrap();
     match ext {
         "xlsx" => xlsx::XlsxData::new(&path)?.into_dataframe(),
@@ -219,11 +226,15 @@ fn fmt_df(df: DataFrame, path: &PathBuf, config: &Config) -> anyhow::Result<Data
                     .then(other.bank_id_expr().alias("_to_bank_id"))
                     .otherwise(one.bank_id_expr().alias("_from_bank_id")),
             );
+
+        // 标注主体ID
+        lf = lf.with_column(one.id_expr().alias("_prime_id"));
     }
     if let Trans::Simple {
         col_amount,
         from,
         to,
+        prime_id,
     } = config.trans
     {
         lf = lf
@@ -239,7 +250,14 @@ fn fmt_df(df: DataFrame, path: &PathBuf, config: &Config) -> anyhow::Result<Data
             .with_column(from.name_expr().alias("_from_name"))
             .with_column(to.name_expr().alias("_to_name"))
             .with_column(from.bank_id_expr().alias("_from_bank_id"))
-            .with_column(to.bank_id_expr().alias("_to_bank_id"))
+            .with_column(to.bank_id_expr().alias("_to_bank_id"));
+
+        // 标注主体ID
+        if let Some(prime_id) = prime_id {
+            lf = lf.with_column(col(prime_id).alias("_prime_id"));
+        } else {
+            lf = lf.with_column(lit(NULL).alias("_prime_id"));
+        }
     }
 
     // 添加路径列

@@ -61,14 +61,15 @@ pub enum Trans {
         col_amount: &'static str,
         from: Entity,
         to: Entity,
+        prime_id: Option<&'static str>, // 查询主体列名
     },
     /// 其他有向账单设置可详细设置方向列和方向字符串
     Duplex {
         col_amount: &'static str,
-        one: Entity,
-        other: Entity,
-        col_direct: &'static str,
-        value_out: &'static str, // 借、出等
+        one: Entity,              // 查询主体
+        other: Entity,            // 交易对方
+        col_direct: &'static str, // 方向标记列
+        value_out: &'static str,  // 借、出等
     },
 }
 impl Trans {
@@ -80,23 +81,25 @@ impl Trans {
                 one,
                 other,
                 col_direct,
-                ..
-                // value_out,
+                value_out: _,
             } => {
                 ret.push(col_amount);
                 ret.extend(one.all_columns());
                 ret.extend(other.all_columns());
                 ret.push(col_direct);
-            },
+            }
             Self::Simple {
                 col_amount,
                 from,
                 to,
-                ..
+                prime_id,
             } => {
                 ret.push(col_amount);
                 ret.extend(from.all_columns());
                 ret.extend(to.all_columns());
+                if let Some(prime_id) = prime_id {
+                    ret.push(prime_id)
+                }
             }
         }
         ret
@@ -200,6 +203,7 @@ impl Config {
                 col_bank_id: Some("收款方银行卡所属银行卡号"),
                 col_name: Some("收款方的商户名称"),
             },
+            prime_id: Some("支付帐号"),
         },
     };
     pub const JASS: Config = Config {
@@ -272,11 +276,12 @@ impl Config {
                 col_name: Some("付款方开户名"),
             },
             to: Entity {
-                col_id: "交易流水号",
+                col_id: "收款支付帐号",
                 col_id_alter: None,
                 col_bank_id: Some("收款银行卡号"),
                 col_name: Some("收款方的商户名称"),
             },
+            prime_id: None, // QQ钱包调证没有查询主体这一列
         },
     };
     pub const GENERIC1: Config = Config {
