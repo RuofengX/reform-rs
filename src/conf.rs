@@ -63,25 +63,45 @@ pub enum Trans {
         to: Entity,
         prime_id: Option<&'static str>, // 查询主体列名
     },
-    /// 其他有向账单设置可详细设置方向列和方向字符串
-    Duplex {
+    /// 有向账单设置可详细设置方向列和方向字符串
+    Directed {
+        /// 金额
         col_amount: &'static str,
-        one: Entity,              // 查询主体
-        other: Entity,            // 交易对方
-        col_direct: &'static str, // 方向标记列
-        value_out: &'static str,  // 借、出等
+
+        /// 查询主体
+        one: Entity,
+
+        /// 交易对方
+        other: Entity,
+
+        /// 方向标记列
+        col_direct: &'static str,
+
+        /// 借、出等
+        value_out: &'static str,
+
+        /// one字段是否是查询主体
+        ///
+        /// 在极少部份账单中，账单是混杂的，
+        /// 即：出、入方向不是相较主体，而是随机的。
+        /// 这种情况这个字段就是false
+        ///
+        /// 正常情况one的主体就是查询的主体
+        /// 这个字段设置为true
+        one_is_prime: bool,
     },
 }
 impl Trans {
     pub fn all_columns(&self) -> Vec<&'static str> {
         let mut ret = vec![];
         match self.clone() {
-            Self::Duplex {
+            Self::Directed {
                 col_amount,
                 one,
                 other,
                 col_direct,
                 value_out: _,
+                one_is_prime: _,
             } => {
                 ret.push(col_amount);
                 ret.extend(one.all_columns());
@@ -163,7 +183,7 @@ impl Config {
             fmt: "%Y%m%d%H%M%S",
             fmt_alter: Some("%Y%m%d"),
         },
-        trans: Trans::Duplex {
+        trans: Trans::Directed {
             col_amount: "金额",
             one: Entity {
                 col_id: "查询账号",
@@ -179,6 +199,7 @@ impl Config {
             },
             col_direct: "借贷标志",
             value_out: "借",
+            one_is_prime: true,
         },
     };
     pub const GF_3: Config = Config {
@@ -215,7 +236,7 @@ impl Config {
             fmt: "%Y-%m-%d %H:%M:%S",
             fmt_alter: None,
         },
-        trans: Trans::Duplex {
+        trans: Trans::Directed {
             col_amount: "受理机构代码",
             one: Entity {
                 col_id: "银行卡号（交易卡号）",
@@ -231,6 +252,7 @@ impl Config {
             },
             col_direct: "交易渠道",
             value_out: "消费",
+            one_is_prime: true,
         },
     };
     pub const JZ: Config = Config {
@@ -241,7 +263,7 @@ impl Config {
             fmt: "%Y%m%d%H%M%S",
             fmt_alter: None,
         },
-        trans: Trans::Duplex {
+        trans: Trans::Directed {
             col_amount: "金额",
             one: Entity {
                 col_id: "查询账号",
@@ -257,6 +279,7 @@ impl Config {
             },
             col_direct: "借贷标志",
             value_out: "借",
+            one_is_prime: true,
         },
     };
     pub const QQ: Config = Config {
@@ -292,7 +315,7 @@ impl Config {
             fmt: "%Y-%m-%d %H:%M:%S",
             fmt_alter: None,
         },
-        trans: Trans::Duplex {
+        trans: Trans::Directed {
             col_amount: "交易金额",
             one: Entity {
                 col_id: "查询账户",
@@ -308,6 +331,7 @@ impl Config {
             },
             col_direct: "借贷标识",
             value_out: "出",
+            one_is_prime: false, // 奇葩账单
         },
     };
 }

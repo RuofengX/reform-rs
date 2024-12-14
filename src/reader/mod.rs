@@ -178,12 +178,13 @@ fn fmt_df(df: DataFrame, path: &PathBuf, config: &Config) -> anyhow::Result<Data
         .drop(["__time_0", "__time_1"]);
 
     // 自动处理金额
-    if let Trans::Duplex {
+    if let Trans::Directed {
         col_amount,
         one,
         other,
         col_direct,
         value_out,
+        one_is_prime,
     } = config.trans
     {
         lf = lf
@@ -228,7 +229,11 @@ fn fmt_df(df: DataFrame, path: &PathBuf, config: &Config) -> anyhow::Result<Data
             );
 
         // 标注主体ID
-        lf = lf.with_column(one.id_expr().alias("_prime_id"));
+        if one_is_prime {
+            lf = lf.with_column(one.id_expr().alias("_prime_id"));
+        } else {
+            lf = lf.with_column(lit(NULL).alias("_prime_id"));
+        }
     }
     if let Trans::Simple {
         col_amount,
